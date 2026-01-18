@@ -1,8 +1,120 @@
 import { useState, useRef, useEffect } from 'react';
 import { FileDown, Copy, Trash2, FileText, Code, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
-import TurndownService from 'turndown';
-import './App.css'; // Import the CSS file
+import { NodeHtmlMarkdown } from 'node-html-markdown';
+import './App.css';
 
+// --- Types ---
+interface ChromeAPI {
+  tabs: {
+    query: (queryInfo: { active: boolean; currentWindow: boolean }) => Promise<{ id?: number }[]>;
+  };
+  scripting: {
+    executeScript: (injection: { target: { tabId: number }; func: () => string | null }) => Promise<{ result: string | null }[]>;
+  };
+}
+
+// --- Logic: Language Detection ---
+const detectLanguage = (code: string): string => {
+  const trimmed = code.trim();
+  if (!trimmed) return 'text';
+  const firstLine = trimmed.split('\n')[0].trim();
+  
+  if (firstLine.startsWith('$') || 
+      /^(npm|npx|yarn|pnpm|cd|ls|git|docker|curl|wget|brew|sudo|apt|yum|echo|cat|grep|pip|python|node)\b/.test(firstLine)) return 'shell';
+  
+  if (/^(import|export|const|let|var|function|class|async|interface|type)\b/.test(firstLine) || 
+      trimmed.includes('console.log') || trimmed.includes('=>') || trimmed.includes('document.getElementById')) return 'javascript';
+  
+  if (/^(def|class|import|from|if __name__)\b/.test(firstLine) || 
+      (firstLine.includes(':') && !firstLine.includes('{') && !firstLine.includes(';'))) return 'python';
+
+  if (trimmed.startsWith('<') && trimmed.endsWith('>')) return 'html';
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) return 'json';
+  if (trimmed.includes('{') && /^(body|div|span|h[1-6]|#|\.)/.test(firstLine)) return 'css';
+
+  return 'shell'; 
+};
+
+// --- Logic: Post-Processing ---
+const postProcessMarkdown = (md: string): string => {
+  let clean = md;
+
+  // 1. Fix MD036: Emphasis used as heading
+  clean = clean.replace(/^(\s*)\*\*([^*\n]+)\*\*(\s*)$/gm, '$1### $2$3');
+
+  // 2. Fix MD029: Ordered list item prefix (Ensure 1. 1. 1. numbering)
+  clean = clean.replace(/^(\s*)\d+\.\s/gm, '$11. ');
+
+  // 3. Fix Indentation (MD007 / MD032)
+  // Convert 2-space indentation to 4-space indentation for list items
+  clean = clean.replace(/^( {2})([-*]|\d+\.)/gm, '    $2');
+  clean = clean.replace(/^( {4})([-*]|\d+\.)/gm, '        $2');
+
+  // 4. Fix Escaped Periods in Headers (e.g. "### 1\. Title" -> "### 1. Title")
+  clean = clean.replace(/^(#{1,6}\s+\d+)\\\. /gm, '$1. ');
+
+  // 5. Fix MD031: Ensure blank lines around fenced code blocks
+  // Ensure newline before opening fence
+  clean = clean.replace(/([^\n])\n(```)/g, '$1\n\n$2');
+  // Ensure newline after closing fence
+  clean = clean.replace(/(```)\n([^\n])/g, '$1\n\n$2');
+
+  // 6. Fix MD047: Single trailing newline
+  clean = clean.trim() + '\n';
+
+  return clean;
+};
+
+// --- Logic: Main Conversion ---
+const convertToMarkdown = (html: string) => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  
+  // --- DOM CLEANUP ---
+
+  // 1. Unwrap <p> tags inside <li> to fix "Loose List" spacing issues
+  doc.querySelectorAll('li > p').forEach((p) => {
+    const parent = p.parentNode;
+    if (parent) {
+      while (p.firstChild) parent.insertBefore(p.firstChild, p);
+      parent.removeChild(p);
+    }
+  });
+
+  // 2. Process Code Blocks
+  doc.querySelectorAll('pre code').forEach((codeBlock) => {
+    const element = codeBlock as HTMLElement;
+    const parent = element.parentElement as HTMLElement;
+    
+    // Trim whitespace (Fixes extra newlines inside block)
+    if (element.textContent) {
+      element.textContent = element.textContent.trim();
+    }
+
+    // Apply Smart Language Detection
+    const existingClass = element.className || parent.className || '';
+    if (!existingClass.match(/(?:language-|lang-)(\w+)/)) {
+      const lang = detectLanguage(element.textContent || '');
+      if (lang) {
+        element.classList.add(`language-${lang}`);
+      }
+    }
+  });
+
+  // --- CONVERSION ---
+  const cleanHtml = doc.body.innerHTML;
+  
+  const md = NodeHtmlMarkdown.translate(cleanHtml, {
+    codeBlockStyle: 'fenced',
+    bulletMarker: '-',
+    strongDelimiter: '**',
+    emDelimiter: '*',
+  });
+
+  return postProcessMarkdown(md);
+};
+
+// --- Component ---
 export default function App() {
   const [markdownOutput, setMarkdownOutput] = useState<string>('');
   const [status, setStatus] = useState<'idle' | 'scanning' | 'copied' | 'error' | 'no-selection' | 'dev-mode' | 'copy-failed'>('idle');
@@ -10,79 +122,19 @@ export default function App() {
   const editorRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLTextAreaElement>(null);
 
-  // ... [Keep detectLanguage function exactly as is] ...
-  const detectLanguage = (code: string): string => {
-    const trimmed = code.trim();
-    if (!trimmed) return 'text';
-    const firstLine = trimmed.split('\n')[0].trim();
-    
-    if (firstLine.startsWith('$') || /^(npm|npx|yarn|pnpm|cd|ls|git|docker|curl|wget|brew|sudo|apt|yum|echo|cat|grep|pip|python|node)\b/.test(firstLine)) return 'shell';
-    if (/^(import|export|const|let|var|function|class|async|interface|type)\b/.test(firstLine) || trimmed.includes('console.log') || trimmed.includes('=>') || trimmed.includes('document.getElementById')) return 'javascript';
-    if (/^(def|class|import|from|if __name__)\b/.test(firstLine) || (firstLine.includes(':') && !firstLine.includes('{') && !firstLine.includes(';'))) return 'python';
-    if (trimmed.startsWith('<') && trimmed.endsWith('>')) return 'html';
-    if (trimmed.startsWith('{') && trimmed.endsWith('}')) return 'json';
-    if (trimmed.includes('{') && /^(body|div|span|h[1-6]|#|\.)/.test(firstLine)) return 'css';
-    return 'shell';
-  };
-
-  // ... [Keep convertToMarkdown function exactly as is] ...
-  const convertToMarkdown = (html: string) => {
-    const turndownService = new TurndownService({
-      headingStyle: 'atx', hr: '---', bulletListMarker: '-', codeBlockStyle: 'fenced', emDelimiter: '*', strongDelimiter: '**',
-    });
-
-    turndownService.addRule('fencedCodeBlock', {
-      filter: (node) => node.nodeName === 'PRE' && node.firstChild?.nodeName === 'CODE',
-      replacement: (_content, node) => {
-        const element = node as HTMLElement;
-        const codeElement = element.firstChild as HTMLElement;
-        const rawCode = codeElement.textContent || '';
-        const classSource = codeElement.className || element.className || '';
-        const match = classSource.match(/(?:language-|lang-)(\w+)/);
-        let lang = match ? match[1] : '';
-        if (!lang) lang = detectLanguage(rawCode);
-        return `\n\n\`\`\`${lang}\n${rawCode.trim()}\n\`\`\`\n\n`;
-      }
-    });
-
-    turndownService.addRule('listSpacing', {
-      filter: ['ul', 'ol'],
-      replacement: (content, node) => {
-        const parent = node.parentNode;
-        const isNested = parent && (parent.nodeName === 'LI' || parent.nodeName === 'OL' || parent.nodeName === 'UL');
-        const cleanContent = content.split('\n').map(line => line.trimEnd()).join('\n').trim();
-        if (isNested) return `\n${cleanContent}\n`; 
-        return `\n\n${cleanContent}\n\n`;
-      }
-    });
-
-    turndownService.addRule('emphasisHeading', {
-      filter: 'p',
-      replacement: (content) => {
-        const trimmed = content.trim();
-        if (/^\*\*[^*]+\*\*$/.test(trimmed) && trimmed.length < 100) {
-           return `\n\n### ${trimmed.slice(2, -2)}\n\n`;
-        }
-        return '\n\n' + trimmed + '\n\n';
-      }
-    });
-
-    let md = turndownService.turndown(html);
-    md = md.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n');
-    return md.trim() + '\n';
-  };
-
-  // ... [Keep useEffect and handlers exactly as is] ...
   useEffect(() => {
     const autoLoadSelection = async () => {
-      const chrome = (window as any).chrome;
+      const chrome = (window as unknown as { chrome?: ChromeAPI }).chrome;
+
       if (!chrome || !chrome.tabs || !chrome.scripting) {
         setStatus('dev-mode');
         return;
       }
+
       try {
         setStatus('scanning');
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
         if (!tab?.id) { setStatus('idle'); return; }
 
         const results = await chrome.scripting.executeScript({
@@ -99,11 +151,17 @@ export default function App() {
         });
 
         const html = results[0]?.result;
+        
         if (html) {
-           if (editorRef.current) { editorRef.current.innerHTML = html; editorRef.current.scrollTop = 0; }
+           if (editorRef.current) {
+             editorRef.current.innerHTML = html;
+             editorRef.current.scrollTop = 0;
+           }
            const md = convertToMarkdown(html);
            setMarkdownOutput(md);
+           
            if (outputRef.current) outputRef.current.scrollTop = 0;
+           
            try {
              await navigator.clipboard.writeText(md);
              setStatus('copied');
@@ -120,11 +178,14 @@ export default function App() {
         setStatus('error');
       }
     };
+
     autoLoadSelection();
   }, []);
 
   const handleInput = () => {
-    if (editorRef.current) setMarkdownOutput(convertToMarkdown(editorRef.current.innerHTML));
+    if (editorRef.current) {
+      setMarkdownOutput(convertToMarkdown(editorRef.current.innerHTML));
+    }
   };
 
   const downloadMarkdown = () => {
@@ -204,8 +265,8 @@ export default function App() {
         </div>
 
         <div className="panel dark">
-          <div className="panel-header">
-            <span className="panel-title">
+          <div className="panel-header dark-header">
+            <span className="panel-title dark-title">
               <Code size={12} />
               Markdown
             </span>
@@ -218,7 +279,7 @@ export default function App() {
             ref={outputRef}
             value={markdownOutput}
             onChange={(e) => setMarkdownOutput(e.target.value)}
-            className="editor dark"
+            className="editor dark-editor"
             placeholder="Markdown output..."
             spellCheck={false}
           />
