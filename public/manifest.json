@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Canvas to Markdown",
+  "version": "1.0",
+  "description": "Converts pasted HTML from Gemini Canvas to clean Markdown.",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Canvas 2 Markdown"
+  },
+  "permissions": [
+    "clipboardRead", 
+    "clipboardWrite",
+    "activeTab",
+    "scripting"
+  ]
+}
