@@ -11,7 +11,9 @@
 
   <a href="https://www.buymeacoffee.com/imnotamember" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
 
-![Extension Demo](assets/canvas2markdown-demo.gif)
+<div align="center">
+  <img src="assets/canvas2markdown-demo.gif" alt="Extension Demo" width="600" />
+</div>
 
 </div>
 
