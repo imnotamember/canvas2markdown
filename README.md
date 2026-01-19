@@ -1,14 +1,17 @@
+<div align="center">
+
 # Canvas 2 Markdown Chrome Extension
 
-![GitHub license](https://img.shields.io/github/license/imnotamember/canvas2markdown?style=flat-square)
-![GitHub version](https://img.shields.io/github/package-json/v/imnotamember/canvas2markdown?style=flat-square)
-![GitHub issues](https://img.shields.io/github/issues/imnotamember/canvas2markdown?style=flat-square)
-![GitHub stars](https://img.shields.io/github/stars/imnotamember/canvas2markdown?style=flat-square)
-![GitHub forks](https://img.shields.io/github/forks/imnotamember/canvas2markdown?style=flat-square)
+![License](https://img.shields.io/github/license/imnotamember/canvas2markdown?style=flat&color=4f46e5)
+![Version](https://img.shields.io/github/package-json/v/imnotamember/canvas2markdown?style=flat&color=16a34a)
+![Issues](https://img.shields.io/github/issues/imnotamember/canvas2markdown?style=flat&color=ea580c)
+![Stars](https://img.shields.io/github/stars/imnotamember/canvas2markdown?style=flat&color=d97706)
 
-<br />
-<a href="https://www.buymeacoffee.com/imnotamember" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
-<br />
+  <br />
+
+  <a href="https://www.buymeacoffee.com/imnotamember" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;" ></a>
+
+</div>
 
 ---
 
