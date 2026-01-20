@@ -1,11 +1,23 @@
 {
   "manifest_version": 3,
   "name": "Gemini Canvas to Markdown",
-  "version": "1.0",
+  "version": "1.0.1",
   "description": "Converts pasted HTML from Gemini Canvas to clean Markdown.",
+  "icons": {
+    "16": "canvas2markdown-icon-16px.png",
+    "32": "canvas2markdown-icon-32px.png",
+    "48": "canvas2markdown-icon-48px.png",
+    "128": "canvas2markdown-icon-128px.png"
+  },
   "action": {
     "default_popup": "index.html",
-    "default_title": "Canvas 2 Markdown"
+    "default_title": "Canvas 2 Markdown",
+    "default_icon": {
+      "16": "canvas2markdown-icon-16px.png",
+      "32": "canvas2markdown-icon-32px.png",
+      "48": "canvas2markdown-icon-48px.png",
+      "128": "canvas2markdown-icon-128px.png"
+    }
   },
   "permissions": [
     "clipboardRead", 
